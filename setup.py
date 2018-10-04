@@ -13,7 +13,7 @@ install_requires = [
 ]
 
 setup(
-    name='aqtash',
+    name='aktash',
     version='0.1.0',
     description='Nomadic GIS toolset. GeoPandas + advanced and typical operations. Supports GeoPackage, GeoJSON, CSV formats.',
     #long_description=open('README.md').read(),
@@ -23,11 +23,11 @@ setup(
         'Topic :: Utilities'
     ],
     packages=[
-        'aqtash',
+        'aktash',
     ],
     entry_points={
         'console_scripts': [
-            'aqtash = aqtash:main',
+            'aktash = aktash:main',
         ]
     },
     install_requires=install_requires,

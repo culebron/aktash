@@ -1,0 +1,5 @@
+id,geometry
+1,"LINESTRING (0 0, 1 0)"
+2,"LINESTRING (0 0, 10 0)"
+3,"LINESTRING (0 0, 5 0, 10 0)"
+4,"LINESTRING (0 0, 5 0, 10 0, 5 -5)"
