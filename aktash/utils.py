@@ -1,5 +1,10 @@
-import geopandas as gpd
+import pandas as pd
+from datetime import datetime
 from shapely import geometry
+import csv
+import fiona
+import geopandas as gpd
+import os
 
 
 def fix_multitypes(geoseries):
@@ -27,3 +32,32 @@ def as_gdf(df, lon_name='lon', lat_name='lat'):
 	df2 = df.copy()
 	df2['geometry'] = df2.apply(lambda r: geometry.Point(r[lon_name], r[lat_name]), axis=1)
 	return gpd.GeoDataFrame(df2.drop(['lon', 'lat'], axis=1), crs=crs.WGS)
+
+
+def file_info(filename):
+	file_stats = os.stat(filename)
+	data = {
+		'size': f'{file_stats.st_size:,d}',
+		'modified': datetime.fromtimestamp(file_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')}
+
+	if filename.endswith('.csv'):
+		with open(filename) as f:
+			dr = csv.DictReader(filename)
+			data['crs'] = None
+			data['fieldnames'] = dr.fieldnames
+
+		data['rows'] = sum(1 for line in f)
+
+	else:
+		with fiona.open(filename) as f:
+			data.update({
+				'crs': f.crs,
+				'rows': len(f),
+				'fieldnames': ['geometry'] + list(f.schema['properties']),
+			})
+
+	return data
+
+
+def gpd_concat(gdfs, crs):
+	return gpd.GeoDataFrame(pd.concat(gdfs), crs=crs)
