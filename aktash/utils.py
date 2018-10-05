@@ -1,3 +1,4 @@
+import geopandas as gpd
 from shapely import geometry
 
 
@@ -19,3 +20,10 @@ def fix_multitypes(geoseries):
 
 	# if no match, then it's heterogenous data, raise value error
 	raise ValueError(f'geoseries contains different types of objects: {types}')
+
+
+def as_gdf(df, lon_name='lon', lat_name='lat'):
+	from aktash import crs
+	df2 = df.copy()
+	df2['geometry'] = df2.apply(lambda r: geometry.Point(r[lon_name], r[lat_name]), axis=1)
+	return gpd.GeoDataFrame(df2.drop(['lon', 'lat'], axis=1), crs=crs.WGS)
