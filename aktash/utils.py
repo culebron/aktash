@@ -10,7 +10,7 @@ def fix_multitypes(geoseries):
 		('Point', 'MultiPoint', geometry.MultiPoint)
 	)
 
-	if len(geoseries) == 1:
+	if len(types) == 1:
 		return geoseries
 
 	for single_type, multi_type, klass in check_types:

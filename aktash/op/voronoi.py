@@ -1,6 +1,6 @@
 #!/usr/bin/python3.6
 
-from aktash import autoargs_once, crs, match, write
+from aktash import autoargs_once, crs, write
 from shapely.geometry import LineString, geo
 from shapely.ops import unary_union, polygonize
 from tqdm import tqdm
@@ -73,5 +73,9 @@ def main(input_df: gpd.GeoDataFrame, column=None, debug=False):
 	if column is not None:
 		subset.append(column)
 
-	result = match(result, input_df, other_columns=column, agg={column: 'first'})
-	return result.to_crs(original_crs)
+	joined = gpd.sjoin(result, input_df[subset]).drop('index_right', axis=1)
+
+	if column is not None:
+		joined = joined.dissolve(column).reset_index()
+
+	return joined.to_crs(original_crs)
