@@ -16,7 +16,7 @@ def autoargs_once(func):
 	return func
 
 
-def read(fname, crs=None, driver=None):
+def read(fname, crs=None, driver=None, **kwargs):
 	"""
 	Reads DataFrame or GeoDataFrame from file or postgres database, judging by file extension or `driver` parameter.
 
@@ -47,15 +47,15 @@ def read(fname, crs=None, driver=None):
 		return df
 
 	elif fname.endswith('.geojson') or driver == 'GeoJSON':
-		source_df = gpd.read_file(fname, driver='GeoJSON')
+		source_df = gpd.read_file(fname, driver='GeoJSON', **kwargs)
 		if crs:
 			source_df.crs = crs
 
 	elif fname.endswith('.json'):
-		source_df = pd.read_json(fname)
+		source_df = pd.read_json(fname, **kwargs)
 
 	elif fname.endswith('.csv') or driver == 'CSV':
-		source_df = pd.read_csv(fname)
+		source_df = pd.read_csv(fname, **kwargs)
 		if 'geometry' in source_df:
 			try:
 				source_df['geometry'] = source_df.geometry.apply(lambda g: wkt.loads(g))
@@ -87,7 +87,7 @@ def read(fname, crs=None, driver=None):
 				if layername not in layers:
 					raise argh.CommandError('Can\'t detect default layer in %s. Layers available are: %s' % (fname, ', '.join(layers)))
 
-		source_df = gpd.read_file(fname, driver='GPKG', layer=layername)
+		source_df = gpd.read_file(fname, driver='GPKG', layer=layername, **kwargs)
 		if crs:
 			source_df.crs = crs
 
