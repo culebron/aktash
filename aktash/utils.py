@@ -34,6 +34,14 @@ def as_gdf(df, lon_name='lon', lat_name='lat'):
 	return gpd.GeoDataFrame(df2.drop(['lon', 'lat'], axis=1), crs=crs.WGS)
 
 
+FILE_INFO_DESC = {
+	'size': 'File size',
+	'modified': 'Modified',
+	'fieldnames': 'Field names',
+	'crs': 'CRS',
+	'rows': 'Rows'
+}
+
 def file_info(filename):
 	file_stats = os.stat(filename)
 	data = {
