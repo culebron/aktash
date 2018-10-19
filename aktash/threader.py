@@ -31,16 +31,17 @@ def thread_map(worker_function, input_array, threads_number=10):
 	for item in input_array:
 		_inq.append(item)
 
-	threads = []
-	for i in range(threads_number):
-		thread = Thread(target=_worker)
-		thread.start()
-		threads.append(thread)
+	if threads_number == 1:
+		# single thread - just run syncronously (eg. for inline debugger)
+		_worker()
 
-	[i.join() for i in threads]
+	else:
+		threads = []
+		for i in range(threads_number):
+			thread = Thread(target=_worker)
+			thread.start()
+			threads.append(thread)
 
-	ret = []
-	while _outq:
-		ret.append(_outq.pop(0))
+		[i.join() for i in threads]
 
-	return ret
+	return _outq[:]
