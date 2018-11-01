@@ -4,7 +4,7 @@ import sys
 from threading import Thread
 import traceback
 
-def thread_map(worker_function, input_array, threads_number=10):
+def thread_map(worker_function, input_array, threads_number=10, **kwargs):
 	_inq = []
 	_outq = []
 
@@ -14,10 +14,10 @@ def thread_map(worker_function, input_array, threads_number=10):
 			try:
 				if inspect.isgeneratorfunction(worker_function):
 				# добавить inspect и проверять, что функция - генератор
-					for output_item in worker_function(input_item, _inq):
+					for output_item in worker_function(input_item, _inq, **kwargs):
 						_outq.append(output_item)
 				else:
-					_outq.append(worker_function(input_item, _inq))
+					_outq.append(worker_function(input_item, _inq, **kwargs))
 			except Exception as e:
 				if isinstance(e, (KeyboardInterrupt, bdb.BdbQuit)):
 					raise e
