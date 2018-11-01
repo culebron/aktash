@@ -1,3 +1,4 @@
+from fiona import remove, listlayers
 from argh import CommandError
 from shapely import wkb, wkt
 import argh
@@ -107,7 +108,12 @@ def write(df, fname):
 	if isinstance(df, gpd.GeoDataFrame) and len(df) > 0:
 		df['geometry'] = utils.fix_multitypes(df['geometry'])
 
-	if fname.startswith('postgresql://'):
+	match_vector_format = re.match(r'^(?P<filename>(?P<file_own_name>.*)\.(?P<extension>gpkg|geojson))(?:\:(?P<layer_name>[a-z0-9_]+))?$', fname)
+	match_postgres = re.match(r'^postgresql\://', fname)
+	match_csv = fname.endswith('.csv')
+
+
+	if match_postgres:
 		engine, table_name = _connect_postgres(fname)
 		df = df[list(df)]
 
@@ -134,16 +140,24 @@ def write(df, fname):
 
 
 	elif isinstance(df, gpd.GeoDataFrame):
-		if os.path.exists(fname):
-			os.unlink(fname)
-		if fname.endswith('.csv'):
+		if match_csv:
+			if os.path.exists(fname):
+				os.unlink(fname)
 			df = pd.DataFrame(df)
 			df.to_csv(fname, index=False)
-		elif fname.endswith('.gpkg'):
-			df.to_file(fname, driver='GPKG', encoding='utf-8')
-		else:
-			df.to_file(fname, driver='GeoJSON', encoding='utf-8')
 
+		elif match_vector_format:
+			m = match_vector_format
+			filename = m['filename']
+			layer_name = m['layer_name'] or m['file_own_name']
+			driver = 'GPKG' if m['extension'] == 'gpkg' else 'GeoJSON'
+
+			if os.path.exists(filename):
+				if layer_name in listlayers(filename):
+					remove(filename, driver, layer_name)
+
+			df.to_file(filename, driver=driver, encoding='utf-8', layer=layer_name)
+			
 	elif isinstance(df, pd.DataFrame):
 		if fname.endswith('.json'):
 			df.to_json(fname)
