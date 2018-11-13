@@ -103,7 +103,8 @@ def write(df, fname):
 	if isinstance(df, gpd.GeoDataFrame) and len(df) > 0:
 		df['geometry'] = utils.fix_multitypes(df['geometry'])
 
-	match_vector = re.match(r'^(?P<filename>.*/(?P<file_own_name>.*)\.(?P<extension>gpkg|geojson))(?:\:(?P<layer_name>[a-z0-9_]+))?$', fname)
+	match_gpkg = re.match(r'^(?P<filename>.*/(?P<file_own_name>.*)\.(?P<extension>gpkg))(?:\:(?P<layer_name>[a-z0-9_]+))?$', fname)
+	match_geojson = re.match(r'^(?P<filename>.*/(?P<file_own_name>.*)\.(?P<extension>gpkg))$', fname)
 	match_postgres = re.match(r'^postgresql\://', fname)
 	match_csv = fname.endswith('.csv')
 
@@ -140,17 +141,21 @@ def write(df, fname):
 			df = pd.DataFrame(df)
 			df.to_csv(fname, index=False)
 
-		elif match_vector:
-			filename = match_vector['filename']
-			layer_name = match_vector['layer_name'] or match_vector['file_own_name']
-			driver = 'GPKG' if match_vector['extension'] == 'gpkg' else 'GeoJSON'
-
+		elif match_gpkg:
+			filename = match_gpkg['filename']
+			layer_name = match_gpkg['layer_name'] or match_gpkg['file_own_name']
+			
 			if os.path.exists(filename):
 				if layer_name in listlayers(filename):
-					remove(filename, driver, layer_name)
+					remove(filename, 'GPKG', layer_name)
 
-			df.to_file(filename, driver=driver, encoding='utf-8', layer=layer_name)
-			
+			df.to_file(filename, driver='GPKG', encoding='utf-8', layer=layer_name)
+		elif match_geojson:
+			if os.path.exists(filename):
+				os.unlink(filename)
+
+			df.to_file(filename, driver='GeoJSON', encoding='utf-8')
+
 	elif isinstance(df, pd.DataFrame):
 		if fname.endswith('.json'):
 			df.to_json(fname)
