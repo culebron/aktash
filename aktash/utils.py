@@ -1,10 +1,11 @@
-import pandas as pd
 from datetime import datetime
 from shapely import geometry
 import csv
 import fiona
 import geopandas as gpd
 import os
+import pandas as pd
+import re
 
 
 def fix_multitypes(geoseries):
@@ -43,21 +44,38 @@ FILE_INFO_DESC = {
 }
 
 def file_info(filename):
-	file_stats = os.stat(filename)
+	match_vector = re.match(r'^(?P<filename>(?P<file_own_name>.*)\.(?P<extension>gpkg|geojson|csv))(?:\:(?P<layer_name>[a-z0-9_]+))?$', filename)
+
+	file_stats = os.stat(match_vector['filename'])
 	data = {
 		'size': f'{file_stats.st_size:,d}',
 		'modified': datetime.fromtimestamp(file_stats.st_mtime).strftime('%Y-%m-%d %H:%M:%S')}
 
 	if filename.endswith('.csv'):
-		with open(filename) as f:
-			dr = csv.DictReader(filename)
+		with open(match_vector['filename']) as f:
+			dr = csv.DictReader(match_vector['filename'])
 			data['crs'] = None
 			data['fieldnames'] = dr.fieldnames
 
 		data['rows'] = sum(1 for line in f)
 
 	else:
-		with fiona.open(filename) as f:
+		layer_name = match_vector['layer_name']
+		if layer_name == '':
+			try:
+				layers = fiona.listlayers(filename)
+			except ValueError as e:
+				raise ValueError('Fiona driver can\'t read layers from file %s' % match_vector['filename'])
+
+			if len(layers) == 1:
+				layer_name = layers[0]
+			elif match_vector['file_own_name'] in layers:
+				layer_name = match_vector['file_own_name']
+			else:
+				return
+
+		driver = 'GPKG' if match_vector['extension'] == 'gpkg' else 'GeoJSON'
+		with fiona.open(match_vector['filename'], layer=layer_name, driver=driver) as f:
 			data.update({
 				'crs': f.crs,
 				'rows': len(f),

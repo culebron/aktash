@@ -32,11 +32,16 @@ def read(fname, crs=None, driver=None, **kwargs):
 
 	Specify `driver` if extension does not tell the format. E.g. `read_file('my_file.txt', driver='CSV')`. It's not guaranteed that driver will override the extension. Files are parsed in arbitrary order, which that its not guaranteed that you can override `.geojson` extension with `driver='CSV'` parameter. See the source code or call (Geo)Pandas `read_file` directly if you have such edge cases.
 	"""
-
+	
 	if fname is None:
 		return
 
-	if fname.startswith('postgresql://'):
+	match_vector = re.match(r'^(?P<filename>(?P<file_own_name>.*)\.(?P<extension>gpkg|geojson))(?:\:(?P<layer_name>[a-z0-9_]+))?$', fname)
+	match_postgres = re.match(r'^postgresql\://', fname)
+	match_csv = fname.endswith('.csv')
+
+
+	if match_postgres:
 		engine, table_or_query = _connect_postgres(fname)
 		df = pd.read_sql(table_or_query, engine)
 
@@ -47,15 +52,10 @@ def read(fname, crs=None, driver=None, **kwargs):
 
 		return df
 
-	elif fname.endswith('.geojson') or driver == 'GeoJSON':
-		source_df = gpd.read_file(fname, driver='GeoJSON', **kwargs)
-		if crs:
-			source_df.crs = crs
-
 	elif fname.endswith('.json'):
 		source_df = pd.read_json(fname, **kwargs)
 
-	elif fname.endswith('.csv') or driver == 'CSV':
+	elif match_csv or driver == 'CSV':
 		source_df = pd.read_csv(fname, **kwargs)
 		if 'geometry' in source_df:
 			try:
@@ -67,28 +67,23 @@ def read(fname, crs=None, driver=None, **kwargs):
 		if crs:
 			source_df.crs = crs
 
-	elif '.gpkg' in fname:
-		layername = None
-		if '.gpkg:' in fname:
+	elif match_vector:
+		filename = match_vector['filename']
+		layer_name = match_vector['layer_name'] or match_vector['file_own_name']
+		driver = 'GPKG' if match_vector['extension'] == 'gpkg' else 'GeoJSON'
+
+		if match_vector['layer_name'] == '':
 			try:
-				fname, layername = fname.split(':')
-			except ValueError as e:
-				raise argh.CommandError('File name should be name.gpkg or name.gpkg:layer_name. Got "%s" instead.' % fname)
-		else:
-			try:
-				layers = fiona.listlayers(fname)
+				layers = fiona.listlayers(filename)
 			except ValueError as e:
 				raise argh.CommandError('Fiona driver can\'t read layers from file %s' % fname)
-			
-			if len(layers) == 1:
-				layername = layers[0]
 
+			if len(layers) == 1 and match_vector['layer_name'] == '':
+				layer_name = layers[0]
 			else:
-				layername = os.path.splitext(os.path.basename(fname))[0]
-				if layername not in layers:
-					raise argh.CommandError('Can\'t detect default layer in %s. Layers available are: %s' % (fname, ', '.join(layers)))
+				raise argh.CommandError(f'Can\'t detect default layer in {filename}. Layers available are: {", ".join(layers)}')
 
-		source_df = gpd.read_file(fname, driver='GPKG', layer=layername, **kwargs)
+		source_df = gpd.read_file(filename, driver=driver, layer=layer_name, **kwargs)
 		if crs:
 			source_df.crs = crs
 
@@ -108,10 +103,9 @@ def write(df, fname):
 	if isinstance(df, gpd.GeoDataFrame) and len(df) > 0:
 		df['geometry'] = utils.fix_multitypes(df['geometry'])
 
-	match_vector_format = re.match(r'^(?P<filename>(?P<file_own_name>.*)\.(?P<extension>gpkg|geojson))(?:\:(?P<layer_name>[a-z0-9_]+))?$', fname)
+	match_vector = re.match(r'^(?P<filename>.*/(?P<file_own_name>.*)\.(?P<extension>gpkg|geojson))(?:\:(?P<layer_name>[a-z0-9_]+))?$', fname)
 	match_postgres = re.match(r'^postgresql\://', fname)
 	match_csv = fname.endswith('.csv')
-
 
 	if match_postgres:
 		engine, table_name = _connect_postgres(fname)
@@ -146,11 +140,10 @@ def write(df, fname):
 			df = pd.DataFrame(df)
 			df.to_csv(fname, index=False)
 
-		elif match_vector_format:
-			m = match_vector_format
-			filename = m['filename']
-			layer_name = m['layer_name'] or m['file_own_name']
-			driver = 'GPKG' if m['extension'] == 'gpkg' else 'GeoJSON'
+		elif match_vector:
+			filename = match_vector['filename']
+			layer_name = match_vector['layer_name'] or match_vector['file_own_name']
+			driver = 'GPKG' if match_vector['extension'] == 'gpkg' else 'GeoJSON'
 
 			if os.path.exists(filename):
 				if layer_name in listlayers(filename):
