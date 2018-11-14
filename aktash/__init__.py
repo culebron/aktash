@@ -36,7 +36,7 @@ def read(fname, crs=None, driver=None, **kwargs):
 	if fname is None:
 		return
 
-	match_vector = re.match(r'^(?P<filename>(?P<file_own_name>.*)\.(?P<extension>gpkg|geojson))(?:\:(?P<layer_name>[a-z0-9_]+))?$', fname)
+	match_vector = re.match(r'^(?P<filename>.*/(?P<file_own_name>.*)\.(?P<extension>gpkg|geojson))(?:\:(?P<layer_name>[a-z0-9_]+))?$', fname)
 	match_postgres = re.match(r'^postgresql\://', fname)
 	match_csv = fname.endswith('.csv')
 
