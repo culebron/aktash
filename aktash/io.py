@@ -16,7 +16,7 @@ def select_driver(source):
 	raise Exception(f'No driver can open {source}')
 
 
-def read_dataframe(source, geometry_filter=None, chunk=10_000, skip=0, **kwargs):
+def read_stream(source, geometry_filter=None, chunk=10_000, skip=0, **kwargs):
 	"""
 	Reads a dataframe source in chunks or in one piece.
 	Returns a dataframe if `chunk` parameter is set to 'no'.
@@ -45,7 +45,7 @@ def read_dataframe(source, geometry_filter=None, chunk=10_000, skip=0, **kwargs)
 		if geometry_filter is None or isinstance(geometry_filter, BaseGeometry):
 			geometries = [geometry_filter]
 		elif isinstance(geometry_filter, str):
-			geometries = (df['geometry'].values[0] for df in read_dataframe(geometry_filter, chunk=1))
+			geometries = (df['geometry'].values[0] for df in read_stream(geometry_filter, chunk=1))
 		elif isinstance(geometry_filter, abstract.DfReader):
 			geometries = (df['geometry'].values[0] for df in geometry_filter)
 		elif inspect.isgenerator(geometry_filter):
@@ -63,7 +63,7 @@ def read_dataframe(source, geometry_filter=None, chunk=10_000, skip=0, **kwargs)
 				counter.update(len(df))
 
 
-def write_dataframe(data, targets):
+def write_stream(data, targets):
 	"""
 	Writes `data` into `target` path choosing a driver automatically.
 
@@ -116,12 +116,12 @@ def _extract_kwargs(source1, source2):
 	return sources
 
 
-def process_dataframes(source, target, func, **kwargs):
-	write_dataframe(map(source, func, **kwargs), target)
+def process_stream(source, target, func, **kwargs):
+	write_stream(map(source, func, **kwargs), target)
 
 
-def map(source, func, func_args, func_kwargs, **kwargs):
-	for df in read_dataframe(source, **kwargs):
+def map(source, func, func_args=None, func_kwargs=None, **kwargs):
+	for df in read_stream(source, **kwargs):
 		res = func(df)
 		if res is not None:
 			yield res
@@ -129,8 +129,8 @@ def map(source, func, func_args, func_kwargs, **kwargs):
 
 def map_product_concat(source1, source2, func, chunk=1000):
 	(sname1, skw1), (sname2, skw2) = _extract_kwargs(source1, source2)
-	for df1 in read_dataframe(sname1, chunk=chunk, **skw1):
-		for df2 in read_dataframe(sname2, chunk=chunk, **skw2):
+	for df1 in read_stream(sname1, chunk=chunk, **skw1):
+		for df2 in read_stream(sname2, chunk=chunk, **skw2):
 			res = func(df1, df2)
 			if res is not None:
 				yield res
@@ -138,12 +138,12 @@ def map_product_concat(source1, source2, func, chunk=1000):
 
 def map_product_reduce(source1, source2, func, reduce_func, chunk=1000):
 	(sname1, skw1), (sname2, skw2) = _extract_kwargs(source1, source2)
-	for df1 in read_dataframe(sname1, chunk=chunk, **skw1):
+	for df1 in read_stream(sname1, chunk=chunk, **skw1):
 		# we assume records are grouped by left source dataframe,
 		# hence we yield a dataframe for each cycle over source1
 		# and group the results in between
 		prev_df = None
-		for df2 in read_dataframe(sname2, chunk=chunk, **skw2):
+		for df2 in read_stream(sname2, chunk=chunk, **skw2):
 			next_df = func(df1, df2)
 			if prev_df is not None:
 				prev_df = reduce_func(prev_df, next_df)

@@ -1,28 +1,14 @@
 from .csv import CsvReader, CsvWriter, CsvDriver
 from csv import DictReader
-import shapely.wkt, shapely.errors
 import io
+import pandas as pd
+import shapely.wkt, shapely.errors
 
 
 class TsvReader(CsvReader):
-	def __init__(self, source, geometry_filter=None, chunk=10000):
-		super().__init__(source, geometry_filter, chunk)
-
-		if isinstance(self.source, io.BufferedReader):
-			self.handler = io.TextIOWrapper(self.source)
-		elif isinstance(self.source, str):
-			with open(self.source) as f:
-				self.total = sum(1 for i in f)
-			self.handler = open(self.source, sep='\t')
-		elif isinstance(self.source, io.TextIOWrapper):
-			self.handler = self.source
-		else:
-			raise TypeError(f'source must be either io.TextIOWrapper, or filename string. Got {self.source.__class__} instead.')
-
-
-		self.reader = DictReader(self.handler)
-		self.fieldnames = self.reader.fieldnames
-	
+	def __init__(self, source, geometry_filter=None, chunk=10000, sep='\t'):
+		super().__init__(source, geometry_filter, chunk, sep)
+			
 
 class TsvWriter(CsvWriter):
 	def writedf(self, df):
@@ -32,11 +18,11 @@ class TsvWriter(CsvWriter):
 
 			if isinstance(self.target, str):
 				self._cleanup_target()
-				self.handler = open(self.target, 'w', sep='\t')
+				self.handler = open(self.target, 'w')
 			elif isinstance(self.target, io.TextIOWrapper):
 				self.handler = self.target
 
-			self.writer = DictWriter(self.handler, fieldnames=self.fieldnames, extrasaction='ignore')
+			self.writer = DictWriter(self.handler, fieldnames=self.fieldnames, extrasaction='ignore', delimiter='\t')
 			self.writer.writeheader()
 
 		if 'geometry' in df:

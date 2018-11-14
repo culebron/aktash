@@ -1,3 +1,3 @@
-from . import csv, gpkg, geojson, postgres
+from . import csv, tsv, gpkg, geojson # , postgres
 
-drivers = [csv.driver, gpkg.driver, geojson.driver, postgres.driver]
+drivers = [csv.driver, gpkg.driver, geojson.driver, tsv.driver]

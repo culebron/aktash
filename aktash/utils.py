@@ -32,7 +32,7 @@ def as_gdf(df, lon_name='lon', lat_name='lat'):
 	from aktash import crs
 	df2 = df.copy()
 	df2['geometry'] = df2.apply(lambda r: geometry.Point(r[lon_name], r[lat_name]), axis=1)
-	return gpd.GeoDataFrame(df2.drop(['lon', 'lat'], axis=1), crs=crs.WGS)
+	return gpd.GeoDataFrame(df2.drop([lon_name, lat_name], axis=1), crs=crs.WGS)
 
 
 FILE_INFO_DESC = {
@@ -87,3 +87,34 @@ def file_info(filename):
 
 def gpd_concat(gdfs, crs):
 	return gpd.GeoDataFrame(pd.concat(gdfs), crs=crs)
+
+
+def dict_or_json(series):
+	"""
+	Make sure json columns from files are loads-ed, not strings.
+	"""
+	from json import loads
+	try:
+		return series.apply(loads)
+	except TypeError:
+		return series
+
+
+def dicts_to_json(df, inplace=False):
+	"""
+	Dumps json columns to text to save with geometry files.
+	"""
+	if inplace == False:
+		df = df.copy()
+	from json import dumps
+	for column in df:
+		v = df[df[column].notnull()][column].values
+		if len(v) == 0:
+			continue
+		
+		v = v[0]
+		if isinstance(v, (dict, list)):
+			df[column] = df[column].apply(dumps)
+
+	if inplace == False:
+		return df
