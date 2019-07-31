@@ -4,38 +4,34 @@ from shapely import geometry
 from functools import partial
 
 
-YANDEX = CRS3395 = {'init': 'epsg:3395'}
+MERC = CRS3395 = {'init': 'epsg:3395'}
 GOOGLE = CRS3857 = {'init': 'epsg:3857'}
 WGS = CRS4326 = {'init': 'epsg:4326'}
-# RUS = '+proj=merc +a=6378137 +b=6378137 +lat_ts=0.0 +lon_0=105.0 +x_0=0.0 +y_0=0 +k=1.0 +units=m +nadgrids=@null +wktext +no_defs'
-IRK = '+proj=tmerc +lat_0=0 +lon_0=93 +k=1 +x_0=16500000 +y_0=0 +ellps=krass +towgs84=23.92,-141.27,-80.9,-0,0.35,0.82,-0.12 +units=m +no_defs'
 SIB = '+proj=aea +lat_1=52 +lat_2=64 +lat_0=0 +lon_0=105 +x_0=18500000 +y_0=0 +ellps=krass +units=m +towgs84=28,-130,-95,0,0,0,0 +no_defs'
-crs_dict = {4326: CRS4326, 3857: CRS3857, 3395: CRS3395, 7513: IRK, 7514: SIB}
-
-
+crs_dict = {4326: CRS4326, 3857: CRS3857, 3395: CRS3395, 7514: SIB, '4326': WGS, '3857': GOOGLE, '3395': MERC, 'SIB': SIB}
 
 
 def transform(obj, crs_from, crs_to):
 	return _transform(partial(pyproj.transform, pyproj.Proj(crs_from), pyproj.Proj(crs_to)), obj)
 
-def transform_partial(crs_from, crs_to):
-	return partial(transform, partial(pyproj.transform, pyproj.Proj(crs_from), pyproj.Proj(crs_to)))
-
-yandex2wgs = transform_partial(YANDEX, WGS)
-yandex2google = transform_partial(YANDEX, GOOGLE)
-google2wgs = transform_partial(GOOGLE, WGS)
-google2sib = transform_partial(GOOGLE, SIB)
-wgs2google = transform_partial(WGS, GOOGLE)
-wgs2yandex = transform_partial(WGS, YANDEX)
-wgs2sib = transform_partial(WGS, SIB)
-sib2wgs = transform_partial(SIB, WGS)
+merc2wgs = partial(transform, MERC, WGS)
+merc2google = partial(transform, MERC, GOOGLE)
+google2wgs = partial(transform, GOOGLE, WGS)
+google2sib = partial(transform, GOOGLE, SIB)
+wgs2google = partial(transform, WGS, GOOGLE)
+wgs2merc = partial(transform, WGS, MERC)
+wgs2sib = partial(transform, WGS, SIB)
+sib2wgs = partial(transform, SIB, WGS)
 
 
 meridian180 = geometry.LineString([[180, 85], [180, -85]])
 meridian180sib = transform(meridian180, WGS, SIB)
-meridian180sib_ribbon = meridian180sib.buffer(500) # this is the smallest width that cuts 180 meridian objects to be on separate sides.
+
+# this is the smallest width that cuts 180 meridian objects to be on separate sides.
+meridian180sib_ribbon = meridian180sib.buffer(500)
 
 def split_180_meridian(geom, from_crs=WGS):
+	# splits by 180 meridian to prevent geometries (from openstreetmap) from breaking or being weird.
 	if geom.geom_type not in ('Polygon', 'MultiPolygon', 'LineString', 'MultiLineString'):
 		return geom
 

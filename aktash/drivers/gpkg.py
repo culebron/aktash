@@ -1,17 +1,22 @@
-from .abstract import DfDriver, DfReader, DfWriter
-from aktash.utils import dicts_to_json, dict_or_json
-from json import loads, decoder
+#!/usr/bin/python3.6
+
+from .geojson import GeoJsonDriver, GeoJsonReader, GeoJsonWriter
 import argh
 import geopandas as gpd
 import os
-import shapely.wkt, shapely.errors, shapely.geometry
 
 
-class GpkgReader(DfReader):
+class GpkgReader(GeoJsonReader):
 	fiona_driver = 'GPKG'
+
+	def __str__(self):
+		return f'GpkgReader of \'{self.source}\' ({self.geometry_filter}, {self.chunk_size})'
 	
-	def __init__(self, source, geometry_filter=None, chunk=None):
-		super().__init__(source, geometry_filter, chunk)
+	def __repr__(self):
+		return f'GpkgReader of \'{self.source}\' ({self.geometry_filter}, {self.chunk_size})'
+		
+	def __init__(self, source, geometry_filter=None, chunk_size=10_000, skip=0, **kwargs):
+		super().__init__(source, geometry_filter, chunk_size, skip, **kwargs)
 		import fiona
 		layername = None
 		if '.gpkg:' in self.source:
@@ -33,52 +38,47 @@ class GpkgReader(DfReader):
 				if layername not in layers:
 					raise argh.CommandError('Can\'t detect default layer in %s. Layers available are: %s' % (self.source, ', '.join(layers)))
 
-		self.handler = fiona.open(self.source, driver=self.fiona_driver, layer=layername)
+		self.layername = layername
+
+	def __iter__(self):
+		import fiona
+		self.handler = fiona.open(self.source, driver=self.fiona_driver, layer=self.layername)
 		self.total = len(self.handler)
-		self.iterator = iter(self.handler)
 		self.crs = self.handler.crs
-		self.fieldnames = list(self.handler.schema['properties'].keys()) + ['geometry']
-
-	def _next_row_data(self):
-		record = next(self.iterator)
-		data = record['properties']
-		data['geometry'] = shapely.geometry.shape(record['geometry'])
-		return data
-
-	def __next__(self):
-		data = dict_or_json(super().__next__())
-		for c in data:
-			try:
-				data[c] = data[c].apply(loads)
-			except (TypeError, decoder.JSONDecodeError):
-				pass
-
-		return data
+		self._generator = self._gen()
+		self._itered = True
+		return self
 
 
-class GpkgWriter(DfWriter):
+class GpkgWriter(GeoJsonWriter):
 	fiona_driver = 'GPKG'
 
-	def writedf(self, df):
-		df.drop('', axis=1, inplace=True, errors='ignore')
-		if self.handler is None:
-			self.fieldnames = list(df)
+	def init_handler(self, df=None):
+		import fiona
+		schema = self._get_schema(df)
 
-			import fiona
-			from geopandas.io.file import infer_schema
-			schema = infer_schema(df)
+		layername = None
+		if '.gpkg:' in self.target:
+			try:
+				self.filename, layername = self.target.split(':')
+			except ValueError as e:
+				raise argh.CommandError('File name should be name.gpkg or name.gpkg:layer_name. Got "%s" instead.' % self.target)
+		else:
+			self.filename = self.target
+			layername = os.path.splitext(os.path.basename(self.target))[0]
 
-			self._cleanup_target()
+		# instead of self._cleanup_target(), delete fiona layer
+		if os.path.exists(self.filename) and layername in fiona.listlayers(self.filename):
+			fiona.remove(self.filename, self.fiona_driver, layername)
 
-			self.handler = fiona.open(self.target, 'w', crs=df.crs, driver=self.fiona_driver, schema=schema)
-
-		dicts_to_json(df, inplace=True)
-		self.handler.writerecords(df.iterfeatures())  # TODO: empty geometry/geometry collection casuses a crash. Make a silent ignore by default?
+		crs = df.crs if df is not None else None
+		self._handler = fiona.open(self.filename, 'w', crs=crs, driver=self.fiona_driver, schema=schema, layer=layername)
 
 
-class GpkgDriver(DfDriver):
+class GpkgDriver(GeoJsonDriver):
 	data_type = gpd.GeoDataFrame
 	source_regexp = r'^.*\.gpkg(\:.*|)$'
+	source_extension = None
 	reader = GpkgReader
 	writer = GpkgWriter
 
